@@ -1,0 +1,29 @@
+version: "3.9"
+
+services:
+  mumbai:
+    build: .
+    container_name: mumbai
+    environment:
+      - NODE_NAME=mumbai
+      - PEERS=virginia:5000,frankfurt:5000
+    ports:
+      - "5001:5000"
+
+  virginia:
+    build: .
+    container_name: virginia
+    environment:
+      - NODE_NAME=virginia
+      - PEERS=mumbai:5000,frankfurt:5000
+    ports:
+      - "5002:5000"
+
+  frankfurt:
+    build: .
+    container_name: frankfurt
+    environment:
+      - NODE_NAME=frankfurt
+      - PEERS=mumbai:5000,virginia:5000
+    ports:
+      - "5003:5000"
