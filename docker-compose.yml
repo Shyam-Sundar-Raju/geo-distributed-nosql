@@ -1,12 +1,19 @@
 version: "3.9"
 
 services:
+
+  toxiproxy:
+    image: shopify/toxiproxy
+    container_name: toxiproxy
+    ports:
+      - "8474:8474"
+
   mumbai:
     build: .
     container_name: mumbai
     environment:
       - NODE_NAME=mumbai
-      - PEERS=virginia:5000,frankfurt:5000
+      - PEERS=toxiproxy:8666,toxiproxy:8667
     ports:
       - "5001:5000"
 
@@ -15,7 +22,7 @@ services:
     container_name: virginia
     environment:
       - NODE_NAME=virginia
-      - PEERS=mumbai:5000,frankfurt:5000
+      - PEERS=toxiproxy:8668,toxiproxy:8669
     ports:
       - "5002:5000"
 
@@ -24,6 +31,6 @@ services:
     container_name: frankfurt
     environment:
       - NODE_NAME=frankfurt
-      - PEERS=mumbai:5000,virginia:5000
+      - PEERS=toxiproxy:8670,toxiproxy:8671
     ports:
       - "5003:5000"

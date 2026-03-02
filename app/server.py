@@ -4,6 +4,14 @@ import requests
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Dict
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s",
+)
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
@@ -36,50 +44,89 @@ def internal_replicate(item: Item):
 
 @app.post("/put")
 def put(item: Item):
+    start_time = time.time()
+    logger.info(f"[{NODE_NAME}] WRITE requested for key={item.key}")
+
     timestamp = time.time()
     store[item.key] = {"value": item.value, "timestamp": timestamp}
 
-    acks = 1  # self ACK
+    acks = 1
+    peer_latencies = []
 
     for peer in PEERS:
+        peer_start = time.time()
         try:
             response = requests.post(
                 f"http://{peer}/internal/replicate",
                 json={"key": item.key, "value": item.value},
-                timeout=2
+                timeout=5
             )
+
+            latency = time.time() - peer_start
+            peer_latencies.append((peer, latency))
+
             if response.status_code == 200:
                 acks += 1
-        except:
-            pass
+                logger.info(f"[{NODE_NAME}] ACK from {peer} in {latency:.3f}s")
+        except Exception as e:
+            latency = time.time() - peer_start
+            logger.warning(f"[{NODE_NAME}] FAILED contacting {peer} after {latency:.3f}s")
+
+    total_time = time.time() - start_time
+
+    logger.info(
+        f"[{NODE_NAME}] WRITE completed | acks={acks} | total_time={total_time:.3f}s"
+    )
 
     if acks >= W:
-        return {"status": "write_success", "acks": acks}
+        return {
+            "status": "write_success",
+            "acks": acks,
+            "total_time_seconds": round(total_time, 3),
+            "peer_latencies": peer_latencies,
+        }
     else:
         raise HTTPException(status_code=500, detail="Write quorum not met")
 
 
 @app.get("/get/{key}")
 def get(key: str):
+    start_time = time.time()
+    logger.info(f"[{NODE_NAME}] READ requested for key={key}")
+
     responses = []
 
-    # include self
     if key in store:
         responses.append(store[key])
 
     for peer in PEERS:
+        peer_start = time.time()
         try:
-            response = requests.get(f"http://{peer}/internal/get/{key}", timeout=2)
+            response = requests.get(f"http://{peer}/internal/get/{key}", timeout=5)
+            latency = time.time() - peer_start
+
             if response.status_code == 200:
                 responses.append(response.json())
-        except:
-            pass
+                logger.info(f"[{NODE_NAME}] READ from {peer} in {latency:.3f}s")
+        except Exception:
+            latency = time.time() - peer_start
+            logger.warning(f"[{NODE_NAME}] FAILED reading from {peer} after {latency:.3f}s")
 
     if len(responses) < R:
         raise HTTPException(status_code=500, detail="Read quorum not met")
 
     latest = max(responses, key=lambda x: x["timestamp"])
-    return {"key": key, "value": latest["value"]}
+    total_time = time.time() - start_time
+
+    logger.info(
+        f"[{NODE_NAME}] READ completed | total_time={total_time:.3f}s"
+    )
+
+    return {
+        "key": key,
+        "value": latest["value"],
+        "total_time_seconds": round(total_time, 3),
+    }
 
 
 @app.get("/internal/get/{key}")
