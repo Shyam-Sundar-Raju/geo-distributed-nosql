@@ -1,11 +1,28 @@
 import os
 import time
+import json
 import requests
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Dict
 import logging
 
+STORE_FILE = "store.json"
+def load_store():
+    global store
+    if os.path.exists(STORE_FILE):
+        try:
+            with open(STORE_FILE, "r") as f:
+                store = json.load(f)
+            logger.info(f"[{NODE_NAME}] Loaded {len(store)} records from disk")
+        except Exception:
+            logger.warning(f"[{NODE_NAME}] Failed to load store.json, starting empty")
+            store = {}
+
+def persist_store():
+    with open(STORE_FILE, "w") as f:
+        json.dump(store, f)
+    
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)s | %(message)s",
@@ -15,12 +32,15 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
+store: Dict[str, Dict] = {}
+load_store()
+
 # Configuration
 NODE_NAME = os.getenv("NODE_NAME", "node")
 PEERS = os.getenv("PEERS", "").split(",") if os.getenv("PEERS") else []
-N = 3
-W = 2
-R = 2
+N = len(PEERS) + 1   # peers + self
+W = (N // 2) + 1
+R = (N // 2) + 1
 
 # In-memory store
 store: Dict[str, Dict] = {}
@@ -39,6 +59,7 @@ def health():
 def internal_replicate(item: Item):
     timestamp = time.time()
     store[item.key] = {"value": item.value, "timestamp": timestamp}
+    persist_store()
     return {"status": "replicated", "node": NODE_NAME}
 
 
@@ -79,6 +100,7 @@ def put(item: Item):
     )
 
     if acks >= W:
+        persist_store()
         return {
             "status": "write_success",
             "acks": acks,
