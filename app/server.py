@@ -8,6 +8,8 @@ from typing import Dict
 import logging
 
 STORE_FILE = "store.json"
+NODE_NAME = os.getenv("NODE_NAME", "node")
+
 def load_store():
     global store
     if os.path.exists(STORE_FILE):
@@ -36,7 +38,6 @@ store: Dict[str, Dict] = {}
 load_store()
 
 # Configuration
-NODE_NAME = os.getenv("NODE_NAME", "node")
 PEERS = os.getenv("PEERS", "").split(",") if os.getenv("PEERS") else []
 N = len(PEERS) + 1   # peers + self
 W = (N // 2) + 1
