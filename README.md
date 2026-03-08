@@ -1,302 +1,277 @@
-# Geo-Distributed NoSQL Prototype
-
-**Docker-Based Quorum Replication System**
-
-## 1. Overview
-
-This project implements a **geo-distributed NoSQL prototype** that simulates multi-region replication using Docker containers. The system demonstrates:
-
-* Low-latency regional reads
-* High availability during regional failures
-* Fault tolerance via replica redundancy
-* Quorum-based consistency guarantees
-
-The architecture follows an **AP-preferred distributed model**, where availability and partition tolerance are prioritized, and consistency is tunable via quorum configuration.
-
----
-
-## 2. Background Theory
-
-### 2.1 The Core Problem
-
-In geo-distributed systems:
-
-* Data spread across regions increases latency.
-* Network partitions can isolate regions.
-* Regional outages must not take down the system.
-
-To solve this, data is **replicated across multiple regions**.
-
----
-
-### 2.2 Replication Strategies
-
-From the presentation (Page 2):
-
-#### 1. Synchronous Replication
-
-* All replicas must acknowledge before responding.
-* Guarantees strong consistency.
-* Higher latency.
-
-#### 2. Asynchronous Replication
-
-* Primary acknowledges first.
-* Replicas sync later.
-* Faster writes.
-* Eventual consistency.
-
-#### 3. Semi-Synchronous
-
-* Subset of replicas must ACK.
-* Practical balance between latency and consistency.
-
-**This prototype implements a quorum-based semi-synchronous strategy.**
-
----
-
-### 2.3 Consistency Models
-
-From Page 3:
-
-* **Strong Consistency** – Always return latest value.
-* **Eventual Consistency** – Replicas converge over time.
-* **Causal Consistency**
-* **Read-Your-Writes**
-
-NoSQL systems typically prioritize:
-
-> Availability + Partition Tolerance (AP in CAP theorem)
-
-This prototype ensures:
-
-* Eventual consistency
-* Read-write overlap using quorum
-
----
-
-### 2.4 Quorum Theory
-
-A quorum is defined as:
-
-> The minimum number of replicas that must agree for a read or write to succeed.
-
-Configuration (Page 4):
-
-* **N = 3** (total replicas)
-* **W = 2** (write acknowledgements required)
-* **R = 2** (read replicas queried)
-
-Guarantee:
-
-```
-R + W > N
-```
-
-Since:
-
-```
-2 + 2 > 3
-```
-
-There is guaranteed overlap between read and write sets, ensuring consistency.
-
----
-
-## 3. System Architecture
-
-### 3.1 Replica Layout
-
-Three Docker containers simulate regions:
-
-| Region    | Port |
-| --------- | ---- |
-| Mumbai    | 5001 |
-| Virginia  | 5002 |
-| Frankfurt | 5003 |
-
-Each container:
-
-* Runs an independent replica
-* Maintains its own key-value store
-* Communicates via HTTP
-
-Container isolation simulates data-center separation.
-
----
-
-## 4. Prototype Design
-
-### 4.1 Functional Requirements
-
-Each replica must support:
-
-* `PUT /key` – write key-value pair
-* `GET /key` – retrieve value
-* Health check endpoint
-* Versioning for conflict resolution
-
----
-
-### 4.2 Write Flow (Quorum-Based)
-
-1. Client sends write to coordinator (any node).
-2. Coordinator forwards write to all replicas.
-3. Replicas store value with timestamp/version.
-4. Coordinator waits for **W = 2 ACKs**.
-5. Once 2 ACKs received → success returned.
-
-If only 1 ACK:
-
-* Retry or return failure depending on design.
-
----
-
-### 4.3 Read Flow
-
-1. Client sends read to coordinator.
-2. Coordinator queries **R = 2 replicas**.
-3. Compare versions.
-4. Return latest version.
-5. Optionally repair outdated replica (read-repair).
-
----
-
-### 4.4 Conflict Resolution
-
-Use one of:
-
-* Last-write-wins (timestamp)
-* Vector clocks (advanced option)
-
-For prototype simplicity:
-
-**Use timestamp-based versioning.**
-
----
-
-## 5. Implementation Plan
-
-### Phase 1 – Basic Replica Service
-
-**Technology suggestion:**
-
-* Python (Flask or FastAPI)
-* In-memory dictionary for storage
-* Docker for containerization
-
-Steps:
-
-1. Create replica server.
-2. Implement GET and PUT endpoints.
-3. Add timestamp to stored values.
-4. Test single-node behavior.
-
----
-
-### Phase 2 – Inter-Replica Communication
-
-1. Add peer configuration list.
-2. Implement internal endpoint:
-
-   * `/internal/replicate`
-3. On write:
-
-   * Forward to peers.
-4. Count acknowledgements.
-
----
-
-### Phase 3 – Quorum Logic
-
-Implement:
-
-```python
-N = 3
-W = 2
-R = 2
-```
-
-For writes:
-
-* Wait until W acknowledgements received.
-* Timeout if quorum not met.
-
-For reads:
-
-* Query R replicas.
-* Compare timestamps.
-* Return latest.
-
----
-
-### Phase 4 – Docker Deployment
-
-Create:
-
-* `Dockerfile`
-* `docker-compose.yml`
-
-Compose file should define:
-
-* 3 services
-* Exposed ports (5001–5003)
-* Network for internal communication
-
-Example structure:
-
-```
-geo-nosql/
-│
+# Geo-Distributed NoSQL + Product Store Prototype
+
+A FastAPI-based distributed key-value and product inventory system with quorum replication, periodic anti-entropy sync, and a per-node web UI.
+
+## What This Project Implements
+
+- Geo-style multi-node deployment using Docker containers.
+- Quorum-style reads and writes where:
+  - `N = total nodes known by a node (self + peers)`
+  - `W = majority = floor(N/2) + 1`
+  - `R = majority = floor(N/2) + 1`
+- Last-write-wins conflict handling using timestamps.
+- Startup sync + periodic full-state synchronization every 30 seconds.
+- Product operations with replicated storage:
+  - Create product
+  - Update product info
+  - Add stock
+  - Purchase (stock decreases)
+  - Delete product (tombstone-based)
+- Node-local web page for product management.
+
+## Project Structure
+
+```text
+geo-distributed-nosql/
 ├── app/
-│   └── server.py
+│   ├── server.py              # API server and replication logic
+│   ├── requirements.txt
+│   └── static/
+│       └── index.html         # Web UI per node
 ├── Dockerfile
-├── docker-compose.yml
-└── README.md
+├── docker-compose.yml         # 3-node local setup + toxiproxy
+├── setup-proxies.sh           # Latency injection for local simulation
+├── run.sh                     # Local compose up + proxy setup
+├── start-cluster.sh           # 3-machine role-based startup
+├── stop-cluster.sh            # 3-machine role-based stop
+├── terminate.sh               # wrapper for stop-cluster.sh
+├── read-quorum-test.sh
+└── write-quorum-test.sh
 ```
 
----
+## Architecture
 
-### Phase 5 – Failure Simulation
+Each node runs the same service and can act as coordinator for client requests.
 
-Test:
+State model stored in `store.json`:
 
-* Stop 1 container → system still operational.
-* Stop 2 containers → quorum fails.
-* Network delay simulation (optional).
+```json
+{
+  "kv": {
+    "someKey": { "value": "...", "timestamp": 1234567890.12 }
+  },
+  "products": {
+    "p1": {
+      "product_id": "p1",
+      "name": "Tea",
+      "description": "...",
+      "price": 10.0,
+      "stock": 5,
+      "timestamp": 1234567890.12,
+      "deleted": false
+    }
+  }
+}
+```
 
----
+## Replication and Consistency Model
 
-## 6. Optional Enhancements
+1. Client writes to any node.
+2. Coordinator writes locally.
+3. Coordinator forwards to all peers through internal replication endpoints.
+4. Request succeeds only if acknowledgements `>= W`.
+5. Reads query local + peers and require responses `>= R`.
+6. Latest timestamp wins when multiple versions are seen.
+7. Background sync (`/internal/fullstate`) helps eventual convergence.
 
-* Read repair mechanism
-* Background anti-entropy sync
-* Health monitoring endpoint
-* Leader–Follower variant
-* Raft-based consensus (advanced)
-* Persistent storage (SQLite or file-based)
-* Region-aware routing (simulate nearest-region reads)
+Notes:
+- This is quorum/eventual consistency, not consensus (no Raft/Paxos).
+- Product deletion is tombstone-based (`deleted: true`) to replicate deletes safely.
 
----
+## API Reference
 
-## 7. Expected Outcome
+### Public Endpoints
 
-The system should demonstrate:
+- `GET /` -> Serves node web UI (`app/static/index.html`)
+- `GET /health` -> Node health + peer list
+- `GET /keys` -> Full key-value map
+- `POST /put` -> Quorum write for key-value
+- `GET /get/{key}` -> Quorum read for key-value
 
-* High availability with 1 node failure
-* Eventual consistency
-* Read-write overlap guarantee
-* Realistic geo-distributed behavior simulation
+### Product Endpoints
 
----
+- `GET /products`
+  - Returns active (non-deleted) products.
+- `POST /products`
+  - Creates a product.
+  - Body:
+    ```json
+    {
+      "product_id": "p1",
+      "name": "Tea",
+      "description": "250g",
+      "price": 10.5,
+      "stock": 5
+    }
+    ```
+- `PUT /products/{product_id}`
+  - Updates name/description/price.
+- `POST /products/{product_id}/stock`
+  - Adds stock.
+  - Body: `{ "amount": 10 }`
+- `POST /products/{product_id}/purchase`
+  - Purchases quantity and reduces stock.
+  - Body: `{ "quantity": 2 }`
+- `DELETE /products/{product_id}`
+  - Soft delete using tombstone replication.
 
-## 8. Learning Objectives
+### Internal Endpoints (Node-to-Node)
 
-By implementing this prototype, you will understand:
+- `POST /internal/replicate`
+- `GET /internal/get/{key}`
+- `POST /internal/replicate_product`
+- `GET /internal/fullstate`
 
-* CAP theorem trade-offs
-* Quorum mechanics (R, W, N)
-* Distributed failure handling
-* Replication strategies
-* Consistency tuning
-* Container-based distributed simulation
+## Web UI Features
+
+Open any node URL and use the form-based interface:
+
+- Create Product
+- Update Product Info
+- Add Stock
+- Purchase Product (stock decreases)
+- Delete Product
+- Live product table and status feedback
+
+Local URLs (default):
+- `http://localhost:5001`
+- `http://localhost:5002`
+- `http://localhost:5003`
+
+## Run Locally (Single Machine, 3 Nodes)
+
+Prerequisites:
+- Docker Engine
+- Docker Compose v2 (`docker compose`)
+- `jq` (for `setup-proxies.sh`)
+
+Commands:
+
+```bash
+cd /home/shyam/Desktop/Projects/dist_sys/geo-distributed-nosql
+./run.sh
+```
+
+`run.sh` performs:
+
+```bash
+docker compose down
+docker compose up -d --build
+./setup-proxies.sh
+```
+
+Manual alternative:
+
+```bash
+docker compose up -d --build
+./setup-proxies.sh
+```
+
+Stop:
+
+```bash
+docker compose down
+```
+
+## Run Across 3 Machines (9 Nodes Total)
+
+This repo includes role-based scripts for the layout:
+
+- `machine1`: `mumbai`, `chennai`, `bangalore`
+- `machine2`: `virginia`, `newyork`, `wasdc`
+- `machine3`: `set3a`, `set3b`, `set3c`
+
+Run on each machine:
+
+```bash
+./start-cluster.sh <machine1|machine2|machine3> <M1_IP> <M2_IP> <M3_IP>
+```
+
+Example:
+
+```bash
+./start-cluster.sh machine1 10.0.0.11 10.0.0.12 10.0.0.13
+```
+
+Stop:
+
+```bash
+./stop-cluster.sh machine1
+./stop-cluster.sh machine2
+./stop-cluster.sh machine3
+# or
+./stop-cluster.sh all
+```
+
+Wrapper:
+
+```bash
+./terminate.sh machine1
+```
+
+Network requirements:
+- Allow TCP ports `5001`, `5002`, `5003` between all machines.
+
+## Quick Verification
+
+Health:
+
+```bash
+curl http://localhost:5001/health
+```
+
+Create a product on one node:
+
+```bash
+curl -X POST http://localhost:5001/products \
+  -H "Content-Type: application/json" \
+  -d '{"product_id":"p1","name":"Tea","description":"test","price":10,"stock":5}'
+```
+
+Read from another node:
+
+```bash
+curl http://localhost:5002/products
+```
+
+Purchase and reduce stock:
+
+```bash
+curl -X POST http://localhost:5003/products/p1/purchase \
+  -H "Content-Type: application/json" \
+  -d '{"quantity":2}'
+```
+
+## Troubleshooting
+
+### 1) `docker-compose` fails with `http+docker`
+Use Compose v2 plugin:
+
+```bash
+docker compose up -d --build
+```
+
+Do not use legacy `docker-compose` on this setup.
+
+### 2) `setup-proxies.sh` fails
+Install `jq`:
+
+```bash
+sudo apt-get update && sudo apt-get install -y jq
+```
+
+### 3) Nodes not syncing across machines
+- Verify firewall/security group allows 5001-5003 inbound.
+- Verify reachable IPs with `curl http://<peer-ip>:5001/health`.
+- Ensure each node's `PEERS` contains all other nodes (not itself).
+
+## Current Limitations
+
+- No Raft/Paxos or distributed transactions.
+- Last-write-wins may overwrite concurrent updates.
+- No authentication/TLS between nodes.
+- No region-aware routing policy beyond static peers.
+
+## License / Purpose
+
+Educational prototype for quorum replication, multi-node fault tolerance, and geo-distributed behavior simulation.

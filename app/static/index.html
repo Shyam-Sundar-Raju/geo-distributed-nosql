@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Node Storefront</title>
+  <style>
+    :root {
+      --bg: #f6f8f5;
+      --panel: #ffffff;
+      --ink: #172021;
+      --muted: #566063;
+      --line: #d8ddd8;
+      --brand: #1f6f52;
+      --brand-2: #154734;
+      --danger: #a62f2f;
+      --warn: #915f06;
+      --ok: #0a7f43;
+      --shadow: 0 12px 30px rgba(8, 21, 24, 0.08);
+      --radius: 14px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Noto Sans", "Liberation Sans", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(1200px 400px at 10% -20%, #dfe9d8 0%, transparent 60%),
+        radial-gradient(1000px 300px at 100% 0%, #e9efe5 0%, transparent 55%),
+        var(--bg);
+      min-height: 100vh;
+    }
+
+    .wrap {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 22px;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: center;
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.4rem, 2.3vw, 2rem);
+      letter-spacing: 0.2px;
+    }
+
+    .node {
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 16px;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 14px;
+    }
+
+    .card h2 {
+      margin: 0 0 10px;
+      font-size: 1.05rem;
+    }
+
+    .span-5 { grid-column: span 5; }
+    .span-7 { grid-column: span 7; }
+
+    label {
+      display: block;
+      margin-bottom: 9px;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+
+    input, textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 9px 10px;
+      font-size: 0.95rem;
+      color: var(--ink);
+      background: #fbfcfb;
+    }
+
+    textarea { min-height: 66px; resize: vertical; }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    button {
+      border: 0;
+      background: var(--brand);
+      color: #fff;
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-weight: 650;
+      cursor: pointer;
+      transition: transform 100ms ease, background 180ms ease;
+    }
+
+    button:hover { background: var(--brand-2); }
+    button:active { transform: translateY(1px); }
+
+    button.secondary {
+      background: #445055;
+    }
+
+    button.warn { background: var(--warn); }
+    button.danger { background: var(--danger); }
+
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.94rem;
+    }
+
+    th, td {
+      text-align: left;
+      border-bottom: 1px solid var(--line);
+      padding: 8px 6px;
+      vertical-align: top;
+    }
+
+    th {
+      font-size: 0.82rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+
+    .status {
+      margin: 10px 0 0;
+      min-height: 22px;
+      font-weight: 600;
+    }
+
+    .ok { color: var(--ok); }
+    .err { color: var(--danger); }
+
+    @media (max-width: 900px) {
+      .span-5, .span-7 { grid-column: span 12; }
+      .row { grid-template-columns: 1fr; }
+      table, thead, tbody, tr, th, td { display: block; }
+      thead { display: none; }
+      tr {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        margin-bottom: 10px;
+        padding: 8px;
+      }
+      td { border: 0; padding: 5px 0; }
+      td::before {
+        content: attr(data-label) ": ";
+        color: var(--muted);
+        font-weight: 600;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="header">
+      <div>
+        <h1>Distributed Node Product Console</h1>
+        <div class="node" id="nodeName">Node: loading...</div>
+      </div>
+      <button class="secondary" id="refreshBtn">Refresh Products</button>
+    </div>
+
+    <div class="grid">
+      <section class="card span-5">
+        <h2>Create Product</h2>
+        <label>Product ID <input id="createId" placeholder="sku-001" /></label>
+        <label>Name <input id="createName" placeholder="Tea Pack" /></label>
+        <label>Description <textarea id="createDesc" placeholder="Short product details"></textarea></label>
+        <div class="row">
+          <label>Price <input id="createPrice" type="number" min="0" step="0.01" value="0" /></label>
+          <label>Initial Stock <input id="createStock" type="number" min="0" step="1" value="0" /></label>
+        </div>
+        <button id="createBtn">Create Product</button>
+      </section>
+
+      <section class="card span-7">
+        <h2>Products</h2>
+        <div class="toolbar">
+          <button id="loadBtn">Load</button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Name</th>
+              <th>Price</th>
+              <th>Stock</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody id="productsBody"></tbody>
+        </table>
+      </section>
+
+      <section class="card span-5">
+        <h2>Update Product Info</h2>
+        <label>Product ID <input id="updateId" /></label>
+        <label>New Name <input id="updateName" /></label>
+        <label>New Description <textarea id="updateDesc"></textarea></label>
+        <label>New Price <input id="updatePrice" type="number" min="0" step="0.01" /></label>
+        <button id="updateBtn">Update Product</button>
+      </section>
+
+      <section class="card span-7">
+        <h2>Inventory + Orders</h2>
+        <div class="row">
+          <div>
+            <label>Product ID <input id="stockId" /></label>
+            <label>Add Stock Amount <input id="stockAmount" type="number" min="1" step="1" value="1" /></label>
+            <button class="warn" id="stockBtn">Add Stock</button>
+          </div>
+          <div>
+            <label>Product ID <input id="buyId" /></label>
+            <label>Purchase Quantity <input id="buyQty" type="number" min="1" step="1" value="1" /></label>
+            <button id="buyBtn">Purchase Product</button>
+          </div>
+        </div>
+
+        <hr style="border:none;border-top:1px solid var(--line);margin:14px 0;" />
+
+        <label>Product ID <input id="deleteId" /></label>
+        <button class="danger" id="deleteBtn">Delete Product</button>
+      </section>
+    </div>
+
+    <div class="status" id="status"></div>
+  </div>
+
+  <script>
+    const statusEl = document.getElementById('status');
+    const productsBody = document.getElementById('productsBody');
+    const nodeNameEl = document.getElementById('nodeName');
+
+    function setStatus(message, isError = false) {
+      statusEl.textContent = message;
+      statusEl.className = 'status ' + (isError ? 'err' : 'ok');
+    }
+
+    async function callApi(path, options = {}) {
+      const res = await fetch(path, {
+        headers: { 'Content-Type': 'application/json' },
+        ...options
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const err = data.detail || data.message || ('HTTP ' + res.status);
+        throw new Error(err);
+      }
+      return data;
+    }
+
+    function rowCell(label, value) {
+      const td = document.createElement('td');
+      td.setAttribute('data-label', label);
+      td.textContent = value;
+      return td;
+    }
+
+    async function refreshProducts() {
+      const data = await callApi('/products');
+      nodeNameEl.textContent = 'Node: ' + (data.node || 'unknown');
+
+      productsBody.innerHTML = '';
+      for (const p of data.products || []) {
+        const tr = document.createElement('tr');
+        tr.appendChild(rowCell('ID', p.product_id));
+        tr.appendChild(rowCell('Name', p.name));
+        tr.appendChild(rowCell('Price', String(p.price)));
+        tr.appendChild(rowCell('Stock', String(p.stock)));
+        tr.appendChild(rowCell('Description', p.description || ''));
+        productsBody.appendChild(tr);
+      }
+
+      setStatus('Loaded ' + ((data.products || []).length) + ' product(s).');
+    }
+
+    document.getElementById('refreshBtn').addEventListener('click', () => {
+      refreshProducts().catch(e => setStatus(e.message, true));
+    });
+
+    document.getElementById('loadBtn').addEventListener('click', () => {
+      refreshProducts().catch(e => setStatus(e.message, true));
+    });
+
+    document.getElementById('createBtn').addEventListener('click', async () => {
+      try {
+        await callApi('/products', {
+          method: 'POST',
+          body: JSON.stringify({
+            product_id: document.getElementById('createId').value.trim(),
+            name: document.getElementById('createName').value.trim(),
+            description: document.getElementById('createDesc').value.trim(),
+            price: Number(document.getElementById('createPrice').value),
+            stock: Number(document.getElementById('createStock').value)
+          })
+        });
+        setStatus('Product created.');
+        await refreshProducts();
+      } catch (e) {
+        setStatus(e.message, true);
+      }
+    });
+
+    document.getElementById('updateBtn').addEventListener('click', async () => {
+      try {
+        const body = {};
+        const name = document.getElementById('updateName').value.trim();
+        const description = document.getElementById('updateDesc').value.trim();
+        const priceRaw = document.getElementById('updatePrice').value;
+
+        if (name) body.name = name;
+        if (description) body.description = description;
+        if (priceRaw !== '') body.price = Number(priceRaw);
+
+        await callApi('/products/' + encodeURIComponent(document.getElementById('updateId').value.trim()), {
+          method: 'PUT',
+          body: JSON.stringify(body)
+        });
+        setStatus('Product updated.');
+        await refreshProducts();
+      } catch (e) {
+        setStatus(e.message, true);
+      }
+    });
+
+    document.getElementById('stockBtn').addEventListener('click', async () => {
+      try {
+        await callApi('/products/' + encodeURIComponent(document.getElementById('stockId').value.trim()) + '/stock', {
+          method: 'POST',
+          body: JSON.stringify({ amount: Number(document.getElementById('stockAmount').value) })
+        });
+        setStatus('Stock added.');
+        await refreshProducts();
+      } catch (e) {
+        setStatus(e.message, true);
+      }
+    });
+
+    document.getElementById('buyBtn').addEventListener('click', async () => {
+      try {
+        await callApi('/products/' + encodeURIComponent(document.getElementById('buyId').value.trim()) + '/purchase', {
+          method: 'POST',
+          body: JSON.stringify({ quantity: Number(document.getElementById('buyQty').value) })
+        });
+        setStatus('Purchase successful. Stock reduced.');
+        await refreshProducts();
+      } catch (e) {
+        setStatus(e.message, true);
+      }
+    });
+
+    document.getElementById('deleteBtn').addEventListener('click', async () => {
+      try {
+        await callApi('/products/' + encodeURIComponent(document.getElementById('deleteId').value.trim()), {
+          method: 'DELETE'
+        });
+        setStatus('Product deleted.');
+        await refreshProducts();
+      } catch (e) {
+        setStatus(e.message, true);
+      }
+    });
+
+    refreshProducts().catch(e => setStatus(e.message, true));
+  </script>
+</body>
+</html>
