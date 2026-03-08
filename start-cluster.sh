@@ -33,9 +33,9 @@ add_remote_machine_peers() {
 
 case "$ROLE" in
   machine1)
-    N1="mumbai"
-    N2="chennai"
-    N3="bangalore"
+    N1="Mumbai"
+    N2="Chennai"
+    N3="Bangalore"
     SELF_IP="$M1_IP"
     OTHER_A="$M2_IP"
     OTHER_B="$M3_IP"
@@ -45,9 +45,9 @@ case "$ROLE" in
       echo "machine2 requires M2_IP."
       exit 1
     fi
-    N1="virginia"
-    N2="newyork"
-    N3="wasdc"
+    N1="Virginia"
+    N2="New York"
+    N3="Washington DC"
     SELF_IP="$M2_IP"
     OTHER_A="$M1_IP"
     OTHER_B="$M3_IP"
@@ -57,9 +57,9 @@ case "$ROLE" in
       echo "machine3 requires M3_IP."
       exit 1
     fi
-    N1="set3a"
-    N2="set3b"
-    N3="set3c"
+    N1="London"
+    N2="Paris"
+    N3="Berlin"
     SELF_IP="$M3_IP"
     OTHER_A="$M1_IP"
     OTHER_B="$M2_IP"
